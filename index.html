@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>德州玩家类型测试</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+    }
+    .screen {
+      min-height: 100vh;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .screen.active { display: flex; }
+    .card {
+      width: 100%;
+      max-width: 900px;
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.10);
+      padding: 40px;
+    }
+    .center { text-align: center; }
+    h1 {
+      font-size: 52px;
+      margin: 0 0 24px;
+    }
+    h2 {
+      font-size: 36px;
+      margin: 0 0 20px;
+    }
+    .meta {
+      font-size: 26px;
+      line-height: 1.8;
+      margin: 24px 0 8px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      font-size: 20px;
+      color: #374151;
+      flex-wrap: wrap;
+    }
+    .progress {
+      font-weight: 700;
+    }
+    .hand-box {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      padding: 18px 22px;
+      margin-bottom: 20px;
+      font-size: 24px;
+      line-height: 1.8;
+    }
+    .question-text {
+      white-space: pre-line;
+      font-size: 28px;
+      line-height: 1.8;
+      margin-bottom: 28px;
+    }
+    .option-list {
+      display: grid;
+      gap: 16px;
+    }
+    button {
+      border: none;
+      border-radius: 16px;
+      padding: 18px 24px;
+      font-size: 24px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.10);
+    }
+    .primary {
+      background: #111827;
+      color: white;
+    }
+    .option-btn {
+      width: 100%;
+      text-align: left;
+      background: #eef2ff;
+      color: #111827;
+    }
+    .option-btn:hover {
+      background: #e0e7ff;
+    }
+    .result-type {
+      font-size: 54px;
+      color: #166534;
+      margin: 18px 0 24px;
+      font-weight: 700;
+    }
+    .result-desc {
+      font-size: 24px;
+      line-height: 1.8;
+      color: #374151;
+      margin-bottom: 28px;
+    }
+    .small {
+      font-size: 18px;
+      color: #6b7280;
+      margin-top: 18px;
+    }
+    @media (max-width: 640px) {
+      .card { padding: 24px; }
+      h1 { font-size: 36px; }
+      h2 { font-size: 28px; }
+      .meta, .question-text, .hand-box, button, .result-desc { font-size: 20px; }
+      .result-type { font-size: 40px; }
+    }
+  </style>
+</head>
+<body>
+  <section id="homeScreen" class="screen active">
+    <div class="card center">
+      <h1>德州玩家类型测试</h1>
+      <div class="meta">
+        <div>盲注：$1/$2</div>
+        <div>有效筹码：100bb</div>
+        <div>桌型：6-max</div>
+        <div>共20题</div>
+      </div>
+      <div style="margin-top:36px;">
+        <button class="primary" onclick="startQuiz()">开始测试</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="questionScreen" class="screen">
+    <div class="card">
+      <div class="topbar">
+        <div>$1/$2 ｜ 100bb ｜ 6-max</div>
+        <div class="progress" id="progressText"></div>
+      </div>
+      <div class="hand-box" id="heroInfo"></div>
+      <div class="question-text" id="questionText"></div>
+      <div class="option-list" id="optionsBox"></div>
+    </div>
+  </section>
+
+  <section id="resultScreen" class="screen">
+    <div class="card center">
+      <h2>你的玩家类型是：</h2>
+      <div class="result-type" id="resultType"></div>
+      <div class="result-desc" id="resultDesc"></div>
+      <button class="primary" onclick="restartQuiz()">再测一次</button>
+    </div>
+  </section>
+
+  <script>
+    const questions = generateQuestions(100);
+
+    let selectedQuestions = [];
+    let currentIndex = 0;
+    let agg = 0;
+    let loose = 0;
+    let tight = 0;
+
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function randomItem(array) {
+      return array[Math.floor(Math.random() * array.length)];
+    }
+
+    function generateQuestions(count) {
+      const openingPositions = ["UTG", "HJ", "CO", "BTN"];
+      const heroPositions = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+      const openSizes = ["2.2bb", "2.5bb", "3bb"];
+      const threeBetSizes = ["7.5bb", "8bb", "9bb", "10bb"];
+      const betSizesSmall = ["2bb", "2.2bb", "2.5bb", "3bb"];
+      const betSizesMid = ["4bb", "4.5bb", "5bb", "6bb"];
+      const raiseSizes = ["8bb", "9bb", "10bb", "11bb", "12bb", "13bb"];
+      const potSizes = ["5bb", "5.5bb", "6bb", "6.5bb", "7bb", "10.5bb", "11bb", "12bb"];
+      const turns = ["2♣", "3♣", "4♦", "5♠", "6♥", "J♣", "Q♦", "K♥"];
+      const rivers = ["2♥", "4♠", "6♣", "8♦", "9♥", "J♠", "Q♣", "A♦"];
+
+      const handsStrong = ["A♠ A♥", "K♠ K♦", "Q♠ Q♥", "A♠ K♠", "A♦ K♦", "A♣ Q♣"];
+      const handsBroadway = ["A♠ J♠", "K♠ Q♠", "Q♣ J♣", "K♦ J♦", "J♦ T♦", "A♥ Q♥"];
+      const handsSuitedConn = ["T♠ 9♠", "9♠ 8♠", "8♥ 7♥", "7♣ 6♣", "6♦ 5♦"];
+      const handsWeak = ["A♥ 5♥", "K♣ 9♣", "Q♦ 8♦", "J♣ 8♣", "7♣ 5♦", "5♠ 4♠"];
+      const allHands = [...handsStrong, ...handsBroadway, ...handsSuitedConn, ...handsWeak];
+
+      const flopBoards = [
+        "A♦ 7♠ 2♠",
+        "Q♠ 7♦ 2♠",
+        "9♣ 8♦ 2♠",
+        "T♣ 9♦ 2♠",
+        "K♠ 6♠ 3♦",
+        "J♣ 7♣ 4♦",
+        "Q♦ T♠ 5♣",
+        "8♠ 6♠ 2♥",
+        "A♣ J♦ 4♣",
+        "K♦ Q♣ 8♥"
+      ];
+
+      const generated = [];
+
+      function makePreflopOpenQuestion(id) {
+        const pos = randomItem(["UTG", "HJ", "CO", "BTN"]);
+        const hand = randomItem(allHands);
+        return {
+          id,
+          stage: "preflop",
+          hero: `你在 ${pos} 位置\n手牌：${hand}`,
+          text: `Preflop：前面都弃牌到你。\n有效筹码 100bb。\n现在轮到你行动。`,
+          options: [
+            { action: "Fold", tight: 2 },
+            { action: `Open raise 到 ${randomItem(openSizes)}`, agg: 2, loose: 1 },
+            { action: "Limp", loose: 2 }
+          ]
+        };
+      }
+
+      function makePreflopFacingOpenQuestion(id) {
+        const opener = randomItem(openingPositions);
+        const heroPos = opener === "BTN" ? randomItem(["SB", "BB"]) : randomItem(["CO", "BTN", "SB", "BB"]);
+        const hand = randomItem(allHands);
+        return {
+          id,
+          stage: "preflop",
+          hero: `你在 ${heroPos} 位置\n手牌：${hand}`,
+          text: `Preflop：${opener} open 到 ${randomItem(openSizes)}，其他人弃牌到你。\n有效筹码 100bb。\n现在轮到你行动。`,
+          options: [
+            { action: "Fold", tight: 2 },
+            { action: "Call", loose: 1 },
+            { action: `3-bet 到 ${randomItem(threeBetSizes)}`, agg: 2 }
+          ]
+        };
+      }
+
+      function makeFlopCbetQuestion(id) {
+        const pos = randomItem(["BTN", "CO", "HJ"]);
+        const hand = randomItem(allHands);
+        const flop = randomItem(flopBoards);
+        const pot = randomItem(["5bb", "5.5bb", "6bb", "6.5bb"]);
+        return {
+          id,
+          stage: "flop",
+          hero: `你在 ${pos} 位置\n手牌：${hand}`,
+          text: `Preflop：你 open，对手 call。\nFlop：${flop}，底池 ${pot}。\n对手 check。\n现在轮到你行动。`,
+          options: [
+            { action: "Check back", tight: 1 },
+            { action: `Bet ${randomItem(betSizesSmall)}`, agg: 2 },
+            { action: `Bet ${randomItem(betSizesMid)}`, agg: 2, loose: 1 }
+          ]
+        };
+      }
+
+      function makeFlopFacingBetQuestion(id) {
+        const pos = randomItem(["BB", "SB", "BTN"]);
+        const hand = randomItem(allHands);
+        const flop = randomItem(flopBoards);
+        const pot = randomItem(["5bb", "5.5bb", "6bb", "6.5bb"]);
+        return {
+          id,
+          stage: "flop",
+          hero: `你在 ${pos} 位置\n手牌：${hand}`,
+          text: `Preflop：你 call 对手 open。\nFlop：${flop}，底池 ${pot}。\n你 check，对手 bet ${randomItem(betSizesSmall)}。\n现在轮到你行动。`,
+          options: [
+            { action: "Fold", tight: 2 },
+            { action: "Call", loose: 1 },
+            { action: `Check-raise 到 ${randomItem(raiseSizes)}`, agg: 2 }
+          ]
+        };
+      }
+
+      function makeTurnProbeQuestion(id) {
+        const pos = randomItem(heroPositions);
+        const hand = randomItem(allHands);
+        const flop = randomItem(flopBoards);
+        const turn = randomItem(turns);
+        const pot = randomItem(["9bb", "10bb", "10.5bb", "11bb"]);
+        return {
+          id,
+          stage: "turn",
+          hero: `你在 ${pos} 位置\n手牌：${hand}`,
+          text: `Preflop：你与对手入池。\nFlop：${flop}，双方 check。\nTurn：${turn}，底池 ${pot}。\n对手再次 check。\n现在轮到你行动。`,
+          options: [
+            { action: "Check back", tight: 1 },
+            { action: `Bet ${randomItem(betSizesMid)}`, agg: 2 },
+            { action: `Overbet ${randomItem(["10bb", "11bb", "12bb", "13bb"])}`, agg: 2, loose: 1 }
+          ]
+        };
+      }
+
+      function makeTurnFacingBetQuestion(id) {
+        const pos = randomItem(heroPositions);
+        const hand = randomItem(allHands);
+        const flop = randomItem(flopBoards);
+        const turn = randomItem(turns);
+        return {
+          id,
+          stage: "turn",
+          hero: `你在 ${pos} 位置\n手牌：${hand}`,
+          text: `Preflop：你 call 对手 open。\nFlop：${flop}，你 call 一枪持续下注。\nTurn：${turn}，底池 ${randomItem(["10.5bb", "11bb", "12bb"])}。\n对手 bet ${randomItem(betSizesMid)}。\n现在轮到你行动。`,
+          options: [
+            { action: "Fold", tight: 2 },
+            { action: "Call", loose: 1 },
+            { action: `Raise 到 ${randomItem(["12bb", "13bb", "14bb", "15bb"])}`, agg: 2 }
+          ]
+        };
+      }
+
+      function makeRiverFacingBetQuestion(id) {
+        const pos = randomItem(heroPositions);
+        const hand = randomItem(allHands);
+        const flop = randomItem(flopBoards);
+        const turn = randomItem(turns);
+        const river = randomItem(rivers);
+        return {
+          id,
+          stage: "river",
+          hero: `你在 ${pos} 位置\n手牌：${hand}`,
+          text: `Preflop：你与对手入池。\nFlop：${flop}。\nTurn：${turn}。\nRiver：${river}，底池 ${randomItem(["16bb", "18bb", "20bb"])}。\n对手下注 ${randomItem(["8bb", "10bb", "12bb", "15bb"]) }。\n现在轮到你行动。`,
+          options: [
+            { action: "Fold", tight: 2 },
+            { action: "Call", loose: 1 },
+            { action: `Raise 到 ${randomItem(["24bb", "28bb", "32bb"])}`, agg: 2 }
+          ]
+        };
+      }
+
+      function makeRiverShoveQuestion(id) {
+        const pos = randomItem(heroPositions);
+        const hand = randomItem(allHands);
+        const flop = randomItem(flopBoards);
+        const turn = randomItem(turns);
+        const river = randomItem(rivers);
+        return {
+          id,
+          stage: "river",
+          hero: `你在 ${pos} 位置\n手牌：${hand}`,
+          text: `Preflop：你 call 对手 open。\nFlop：${flop}，你 call。\nTurn：${turn}，双方 check。\nRiver：${river}，底池 ${randomItem(["18bb", "20bb", "22bb"])}。\n对手 shove 80bb。\n现在轮到你行动。`,
+          options: [
+            { action: "Fold", tight: 2 },
+            { action: "Hero call", loose: 2 },
+            { action: "Snap call", agg: 2, loose: 1 }
+          ]
+        };
+      }
+
+      const builders = [
+        makePreflopOpenQuestion,
+        makePreflopFacingOpenQuestion,
+        makeFlopCbetQuestion,
+        makeFlopFacingBetQuestion,
+        makeTurnProbeQuestion,
+        makeTurnFacingBetQuestion,
+        makeRiverFacingBetQuestion,
+        makeRiverShoveQuestion
+      ];
+
+      for (let i = 1; i <= count; i++) {
+        const builder = builders[(i - 1) % builders.length];
+        generated.push(builder(i));
+      }
+
+      return shuffle(generated);
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+    }
+
+    function startQuiz() {
+      selectedQuestions = shuffle(questions).slice(0, 20);
+      currentIndex = 0;
+      agg = 0;
+      loose = 0;
+      tight = 0;
+      renderQuestion();
+      showScreen("questionScreen");
+    }
+
+    function renderQuestion() {
+      const q = selectedQuestions[currentIndex];
+      document.getElementById("progressText").textContent = `第 ${currentIndex + 1} / ${selectedQuestions.length} 题`;
+      document.getElementById("heroInfo").textContent = q.hero;
+      document.getElementById("questionText").textContent = q.text;
+
+      const box = document.getElementById("optionsBox");
+      box.innerHTML = "";
+
+      q.options.forEach(option => {
+        const btn = document.createElement("button");
+        btn.className = "option-btn";
+        btn.textContent = option.action;
+        btn.onclick = () => chooseOption(option);
+        box.appendChild(btn);
+      });
+    }
+
+    function chooseOption(option) {
+      agg += option.agg || 0;
+      loose += option.loose || 0;
+      tight += option.tight || 0;
+      currentIndex += 1;
+
+      if (currentIndex >= selectedQuestions.length) {
+        renderResult();
+        showScreen("resultScreen");
+      } else {
+        renderQuestion();
+      }
+    }
+
+    function renderResult() {
+      let type = "";
+      let desc = "";
+
+      if (loose > tight) {
+        if (agg > 12) {
+          type = "LAG（松凶型）";
+          desc = "你更愿意参与较多底池，并且在很多节点选择主动出击。整体风格偏激进，压迫感强。";
+        } else {
+          type = "Loose Passive（松弱型）";
+          desc = "你参与牌局的频率比较高，但整体更偏向跟注和被动应对。";
+        }
+      } else {
+        if (agg > 12) {
+          type = "TAG（紧凶型）";
+          desc = "你起手选择更谨慎，但一旦入池通常会打得比较主动。这是比较经典、稳健的进攻型风格。";
+        } else {
+          type = "Nit（紧弱型）";
+          desc = "你整体偏保守，入池范围较紧，很多边缘局面更倾向于放弃。";
+        }
+      }
+
+      document.getElementById("resultType").textContent = type;
+      document.getElementById("resultDesc").textContent = desc;
+    }
+
+    function restartQuiz() {
+      showScreen("homeScreen");
+    }
+  </script>
+</body>
+</html>
